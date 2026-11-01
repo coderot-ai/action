@@ -7,7 +7,7 @@ and coderot accepts it only for repos added to a coderot org.
 ```yaml
 on:
   push:
-    branches: [main]
+    branches: [main] # your default branch: coderot takes reports from it only
 permissions:
   contents: read
   id-token: write # signs the upload in to coderot, no secret needed

@@ -10,6 +10,8 @@ runs:
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
       with:
         node-version: 24
+        # off: it caches the package manager a repo's package.json names (pnpm, yarn) and fails when that isn't installed
+        package-manager-cache: false
     # the input reaches the script through env, never ${{ }} inside it
     - shell: bash
       run: npx -y @coderot-ai/cli@1 ci --out "$RUNNER_TEMP/coderot" ${CODEROT_TITLES:+--titles}
