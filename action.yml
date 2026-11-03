@@ -1,4 +1,4 @@
-name: coderot
+name: coderot code health
 description: Code health and AI attribution from your repo's history, on coderot.ai. No secret to configure.
 branding:
   icon: activity
