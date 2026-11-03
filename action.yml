@@ -1,5 +1,8 @@
 name: coderot
 description: Code health and AI attribution from your repo's history, on coderot.ai. No secret to configure.
+branding:
+  icon: activity
+  color: green
 inputs:
   titles:
     description: Send PR titles (and the subject of commits without a PR) to coderot
