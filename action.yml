@@ -1,5 +1,5 @@
 name: coderot code health
-description: Code health and AI attribution from your repo's history, on coderot.ai. No secret to configure.
+description: Code health and AI attribution from your repo's history, on coderot.ai, and each PR's complexity change. No secret to configure.
 branding:
   icon: activity
   color: green
@@ -15,9 +15,31 @@ runs:
         node-version: 24
         # off: it caches the package manager a repo's package.json names (pnpm, yarn) and fails when that isn't installed
         package-manager-cache: false
-    # the input reaches the script through env, never ${{ }} inside it
-    - shell: bash
-      run: npx -y @coderot-ai/cli@1 ci --out "$RUNNER_TEMP/coderot" ${CODEROT_TITLES:+--titles}
+    # a push: the report, uploaded. The input reaches the script through env, never ${{ }} inside it. CODEROT_CLI, unset for users,
+    # lets coderot's own repo run its CLI from source before a release
+    - if: github.event_name != 'pull_request'
+      shell: bash
+      run: ${CODEROT_CLI:-npx -y @coderot-ai/cli@1} ci --out "$RUNNER_TEMP/coderot" ${CODEROT_TITLES:+--titles}
       env:
         GITHUB_TOKEN: ${{ github.token }}
         CODEROT_TITLES: ${{ inputs.titles == 'true' && 'true' || '' }}
+    # a pull request: its complexity change and the hotspots it touches, as one comment updated on each push, and in the run's summary.
+    # Computed here, nothing uploaded. A PR from a fork gets a read-only token, so it gets the summary only; never pull_request_target,
+    # which would run the fork's code with a write token
+    - if: github.event_name == 'pull_request'
+      shell: bash
+      run: |
+        md="$RUNNER_TEMP/coderot-pr.md"
+        ${CODEROT_CLI:-npx -y @coderot-ai/cli@1} pr > "$md"
+        [ -s "$md" ] || { echo 'No code files changed: nothing to post'; exit 0; }
+        cat "$md" >> "$GITHUB_STEP_SUMMARY"
+        if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then echo 'A PR from a fork: the numbers are in the run summary'; exit 0; fi
+        id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+          --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- coderot -->"))) | .id' | head -n 1) || true
+        if [ -n "$id" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$md" --silent
+        else gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@"$md" --silent
+        fi || echo '::warning::coderot could not comment on the PR: give the workflow `pull-requests: write`'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR: ${{ github.event.pull_request.number }}
+        HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
